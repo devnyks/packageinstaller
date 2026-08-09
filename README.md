@@ -61,15 +61,15 @@ fixtures — nothing touches the host system.
 
 Main window — dark theme:
 
-![Main window dark](screenshots/theme-dark.png)
+![Main window dark](screenshots/screenshot-main-dark.png)
 
 Full-size window:
 
-![Full size](screenshots/window-1500x940.png)
+![Full size](screenshots/screenshot-large-window.png)
 
 Running on a real desktop session (dark system theme):
 
-![Real display](screenshots/app-real-display.png)
+![Real display](screenshots/screenshot-live-session.png)
 
 ## License
 
