@@ -1,0 +1,21 @@
+#!/bin/bash
+# Fake socat for tests: records the wrapped SYSTEM command and runs it
+# directly (stdout/stderr passthrough, no PTY).
+LOG="${FAKE_LOG:-/tmp/opencode/fakebin.log}"
+echo "socat $*" >> "$LOG"
+
+for a in "$@"; do
+    case "$a" in
+        SYSTEM:*)
+            # bash already stripped the quotes; strip the SYSTEM:'...' wrapper
+            # (with quotes, if any survived) and the trailing ',stderr STDIO' /
+            # ',pty STDIO' / '...' suffix.
+            inner="$(printf '%s' "$a" | sed -nE "s/^SYSTEM:'?([^',]*).*/\1/p")"
+            [ -z "$inner" ] && inner="${a#SYSTEM:}"
+            ;;
+    esac
+done
+if [ -n "$inner" ]; then
+    eval "$inner"
+fi
+exit $?

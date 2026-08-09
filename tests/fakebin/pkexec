@@ -1,0 +1,5 @@
+#!/bin/bash
+# Fake pkexec for tests: records the command and runs it unprivileged.
+LOG="${FAKE_LOG:-/tmp/opencode/fakebin.log}"
+echo "pkexec $*" >> "$LOG"
+exec "$@"
