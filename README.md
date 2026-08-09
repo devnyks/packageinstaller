@@ -59,17 +59,25 @@ fixtures — nothing touches the host system.
 
 ## Screenshots
 
-Main window — dark theme:
+Discover — curated applications:
 
-![Main window dark](screenshots/screenshot-main-dark.png)
+![Discover](screenshots/screenshot-discover.jpg)
 
-Full-size window:
+Packages — full repository browser:
 
-![Full size](screenshots/screenshot-large-window.png)
+![Packages](screenshots/screenshot-packages.jpg)
 
-Running on a real desktop session (dark system theme):
+Flatpak — applications and runtimes:
 
-![Real display](screenshots/screenshot-live-session.png)
+![Flatpak](screenshots/screenshot-flatpak.jpg)
+
+Console — live process output:
+
+![Console](screenshots/screenshot-console.jpg)
+
+Settings — themes and preferences:
+
+![Settings](screenshots/screenshot-settings.jpg)
 
 ## License
 
