@@ -1,13 +1,25 @@
-# build artifacts
+# Build and install outputs
 build/
 build-*/
 cmake-build-*/
+stage/
+stage-*/
 
-# logs & test output
+# Generated test/build data
+Testing/
+*.qm
 *.log
 *.old
+.cache/
 
-# editor/OS junk
+# Local planning and host-specific development notes
+task_plan.md
+findings.md
+progress.md
+
+# Editors and OS files
+.DS_Store
 *.swp
 *~
-.DS_Store
+.vscode/
+.idea/

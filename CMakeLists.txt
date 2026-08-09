@@ -1,94 +1,127 @@
-cmake_minimum_required(VERSION 3.21)
-project(cachyos-package-installer
-        VERSION 1.0.0
-        DESCRIPTION "Redesigned CachyOS Package Installer"
-        LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.22)
+
+project(cachyos-catalog VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network Concurrent LinguistTools)
 find_package(PkgConfig REQUIRED)
-find_package(Threads REQUIRED)
-pkg_check_modules(LIBALPM REQUIRED IMPORTED_TARGET libalpm>=13.0.0)
-pkg_check_modules(APPSTREAM REQUIRED IMPORTED_TARGET appstream)
-find_package(OpenSSL REQUIRED)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Test LinguistTools)
+pkg_check_modules(ALPM REQUIRED IMPORTED_TARGET libalpm>=13.0.0)
+pkg_check_modules(APPSTREAM REQUIRED IMPORTED_TARGET appstream>=1.0)
 
-file(GLOB TS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/lang/*.ts")
-if(TS_FILES)
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lang")
-    set_source_files_properties(${TS_FILES} PROPERTIES OUTPUT_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/lang")
-    qt_add_translation(QM_FILES ${TS_FILES})
-
-    # deterministic .qm paths (qt_add_translation derives them the same way)
-    set(QM_PATHS)
-    foreach(ts ${TS_FILES})
-        get_filename_component(ts_name ${ts} NAME)
-        string(REPLACE ".ts" ".qm" qm_name "${ts_name}")
-        list(APPEND QM_PATHS "${CMAKE_CURRENT_BINARY_DIR}/lang/${qm_name}")
-    endforeach()
-
-    # the list is stored in a script file at configure time (passing it via
-    # -D would be mangled by the makefile generator's list escaping)
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/lang/qm_list.cmake"
-        "set(TRANSLATION_FILES ${QM_PATHS})\n")
-
-    # embed the compiled .qm files through a generated resource file that is
-    # (re)generated at build time after the .qm files exist
-    set(QRC_OUT "${CMAKE_CURRENT_BINARY_DIR}/lang/translations_generated.qrc")
-    add_custom_command(
-        OUTPUT "${QRC_OUT}"
-        DEPENDS ${QM_PATHS}
-        COMMAND ${CMAKE_COMMAND}
-            -DQM_LIST=${CMAKE_CURRENT_BINARY_DIR}/lang/qm_list.cmake
-            -DOUT=${QRC_OUT}
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gen_qrc.cmake
-        VERBATIM)
+if(COMMAND qt_policy)
+    qt_policy(SET QTP0001 NEW)
+    qt_policy(SET QTP0004 NEW)
 endif()
 
-set(APP_SOURCES
-    resources/app.qrc
-    ${CMAKE_CURRENT_BINARY_DIR}/lang/translations_generated.qrc
-    src/logging.cpp src/logging.h
-    src/cmd.cpp src/cmd.h
-    src/pacman_conf.cpp src/pacman_conf.h
-    src/alpm_manager.cpp src/alpm_manager.h
-    src/pacman_cache.cpp src/pacman_cache.h
-    src/flatpak.cpp src/flatpak.h
-    src/pkglist.cpp src/pkglist.h
-    src/appstream_provider.cpp src/appstream_provider.h
-    src/versionnumber.h
-    src/theme.cpp src/theme.h
-    src/models/package_model.cpp src/models/package_model.h
-    src/models/flatpak_model.cpp src/models/flatpak_model.h
-    src/ui/package_card.cpp src/ui/package_card.h
-    src/ui/package_detail.cpp src/ui/package_detail.h
-    src/ui/confirm_dialog.cpp src/ui/confirm_dialog.h
-    src/ui/remotes_dialog.cpp src/ui/remotes_dialog.h
-    src/ui/progress_overlay.cpp src/ui/progress_overlay.h
-    src/ui/navbar.cpp src/ui/navbar.h
-    src/ui/discover_page.cpp src/ui/discover_page.h
-    src/ui/repo_page.cpp src/ui/repo_page.h
-    src/ui/flatpak_page.cpp src/ui/flatpak_page.h
-    src/ui/console_page.cpp src/ui/console_page.h
-    src/ui/settings_page.cpp src/ui/settings_page.h
-    src/ui/mainwindow.cpp src/ui/mainwindow.h
-    src/ui_test_harness.cpp src/ui_test_harness.h
+qt_add_executable(cachyos-catalog
+    src/main.cpp
+    src/types.hpp
+    src/catalogmodel.hpp src/catalogmodel.cpp
+    src/flatpakparser.hpp src/flatpakparser.cpp
+    src/curatedcatalog.hpp src/curatedcatalog.cpp
+    src/processrunner.hpp src/processrunner.cpp
+    src/operationcommands.hpp src/operationcommands.cpp
+    src/alpmbackend.hpp src/alpmbackend.cpp
+    src/repositoryworker.hpp src/repositoryworker.cpp
+    src/appcontroller.hpp src/appcontroller.cpp
 )
 
-set(APP_LIBS
-    Qt6::Widgets Qt6::Network Qt6::Concurrent Threads::Threads OpenSSL::SSL
-    PkgConfig::LIBALPM PkgConfig::APPSTREAM)
+qt_add_qml_module(cachyos-catalog
+    URI CachyOS.Catalog
+    VERSION 1.0
+    QML_FILES
+        qml/Main.qml
+        qml/Theme.qml
+        qml/AppCard.qml
+        qml/CatalogRow.qml
+)
 
-qt_add_executable(cachyos-pi ${APP_SOURCES} src/main.cpp)
-target_include_directories(cachyos-pi PRIVATE src src/models)
-target_link_libraries(cachyos-pi PRIVATE ${APP_LIBS})
+qt_add_resources(cachyos-catalog app_data
+    PREFIX "/data"
+    FILES resources/pkglist.yaml
+)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(cachyos-pi PRIVATE -O2)
-endif()
+qt_add_resources(cachyos-catalog app_icons
+    PREFIX "/icons"
+    FILES resources/cachyos-catalog.svg
+)
+
+file(GLOB CATALOG_TS_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/translations/catalog_*.ts")
+qt_add_translations(cachyos-catalog
+    TS_FILES ${CATALOG_TS_FILES}
+    RESOURCE_PREFIX "/i18n"
+)
+
+target_include_directories(cachyos-catalog PRIVATE src)
+target_link_libraries(cachyos-catalog PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Network
+    PkgConfig::ALPM
+    PkgConfig::APPSTREAM
+)
 
 enable_testing()
-add_test(NAME ui COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.sh $<TARGET_FILE:cachyos-pi>)
+qt_add_executable(cachyos-catalog-tests
+    tests/test_catalog.cpp
+    src/types.hpp
+    src/catalogmodel.hpp src/catalogmodel.cpp
+    src/flatpakparser.hpp src/flatpakparser.cpp
+    src/curatedcatalog.hpp src/curatedcatalog.cpp
+    src/processrunner.hpp src/processrunner.cpp
+    src/operationcommands.hpp src/operationcommands.cpp
+    src/alpmbackend.hpp src/alpmbackend.cpp
+    src/repositoryworker.hpp src/repositoryworker.cpp
+    src/appcontroller.hpp src/appcontroller.cpp
+)
+qt_add_resources(cachyos-catalog-tests app_data_test
+    PREFIX "/data"
+    FILES resources/pkglist.yaml
+)
+target_include_directories(cachyos-catalog-tests PRIVATE src)
+target_link_libraries(cachyos-catalog-tests PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    Qt6::Test
+    PkgConfig::ALPM
+    PkgConfig::APPSTREAM
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(cachyos-catalog-tests PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME cachyos-catalog-tests COMMAND cachyos-catalog-tests)
+set_tests_properties(cachyos-catalog-tests PROPERTIES
+    ENVIRONMENT "CACHYOS_CATALOG_OFFLINE=1;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/test-config;XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/test-cache")
+find_program(QMLLINT_EXECUTABLE qmllint)
+if(QMLLINT_EXECUTABLE)
+    add_test(NAME cachyos-catalog-qml-lint
+        COMMAND ${QMLLINT_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/qml/Main.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/qml/Theme.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/qml/AppCard.qml
+            ${CMAKE_CURRENT_SOURCE_DIR}/qml/CatalogRow.qml)
+endif()
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(cachyos-catalog PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+include(GNUInstallDirs)
+set(POLKIT_POLICY_FILE "${CMAKE_CURRENT_BINARY_DIR}/org.cachyos.cachyos-catalog.policy")
+configure_file(resources/org.cachyos.cachyos-catalog.policy.in "${POLKIT_POLICY_FILE}" @ONLY)
+install(TARGETS cachyos-catalog RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES resources/cachyos-catalog.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps RENAME cachyos-catalog.svg)
+install(FILES resources/cachyos-catalog.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES "${POLKIT_POLICY_FILE}" DESTINATION ${CMAKE_INSTALL_DATADIR}/polkit-1/actions)
+install(FILES resources/pkglist.yaml DESTINATION lib/cachyos-catalog)
+install(FILES resources/cachyos-catalog.html resources/license.html LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/cachyos-catalog)
