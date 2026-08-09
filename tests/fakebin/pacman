@@ -1,0 +1,35 @@
+#!/bin/bash
+# Fake pacman for tests: records invocations and serves fixture output.
+LOG="${FAKE_LOG:-/tmp/opencode/fakebin.log}"
+FIXTURE="${FAKE_FIXTURE:-/tmp/opencode/fixtures}/pacman"
+echo "pacman $* (fix=$FIXTURE)" >> "$LOG"
+
+if [ -n "$FAKE_PACMAN_FAIL" ]; then
+    echo "error: fake failure injected" >&2
+    exit 1
+fi
+
+args="$*"
+case "$args" in
+    -Qq*)
+        cat "$FIXTURE/installed-names" 2>/dev/null
+        ;;
+    -Q\ *)
+        cat "$FIXTURE/installed-versions" 2>/dev/null
+        ;;
+    -Qd*q*)
+        cat "$FIXTURE/orphans" 2>/dev/null
+        ;;
+    -Si*|-Siv*)
+        cat "$FIXTURE/info" 2>/dev/null
+        ;;
+    -Syu*)
+        echo ":: Starting full system upgrade..."
+        ;;
+    -S*|-R*)
+        echo "installing/removing..."
+        ;;
+    *)
+        ;;
+esac
+exit 0
