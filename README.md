@@ -6,9 +6,12 @@ CachyOS Package Installer.
 
 > **Benchmark provenance**: this repository is a from-scratch redesign produced
 > as an autonomous engineering benchmark. It was written **by the model
-> DeepSeek V4 Flash (0731)** in a single session.
+> DeepSeek V4 Flash (0731)** from a **single one-shot prompt** — the whole
+> project (architecture, implementation, tests, debugging and this
+> documentation) was completed autonomously without iterative prompting.
 >
 > - Model: **DeepSeek V4 Flash (0731)**
+> - Prompt style: **one-shot** (single prompt, fully autonomous execution)
 > - Tokens spent: **552447**
 > - Cost: **$0.35**
 >
@@ -55,14 +58,6 @@ themes, single-instance guard) against fake `pkexec/pacman/flatpak/socat`
 fixtures — nothing touches the host system.
 
 ## Screenshots
-
-Discover page (light theme):
-
-![Discover (light)](screenshots/theme-light-discover.png)
-
-Main window — light theme:
-
-![Main window light](screenshots/theme-light.png)
 
 Main window — dark theme:
 
