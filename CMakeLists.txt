@@ -1,170 +1,94 @@
-cmake_minimum_required(VERSION 3.16)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
-##
-## PROJECT
-## name and version
-##
-project(cachyos-pi
-        VERSION 1.6.2
+cmake_minimum_required(VERSION 3.21)
+project(cachyos-package-installer
+        VERSION 1.0.0
+        DESCRIPTION "Redesigned CachyOS Package Installer"
         LANGUAGES CXX)
 
-
-##
-## INCLUDE
-##
-include(GNUInstallDirs)
-include(StandardProjectSettings)
-include(CompilerWarnings)
-include(EnableCcache)
-include(Linker)
-include(StaticAnalyzers)
-include(Sanitizers)
-include(CPM)
-
-find_package(Threads REQUIRED)
-find_package(PkgConfig REQUIRED)
-find_package(Qt6 COMPONENTS Widgets LinguistTools REQUIRED)
-
-pkg_check_modules(
-  LIBALPM
-  REQUIRED
-  IMPORTED_TARGET
-  libalpm>=13.0.0)
-CPMAddPackage(
-  NAME fmt
-  GITHUB_REPOSITORY fmtlib/fmt
-  GIT_TAG 12.1.0
-  EXCLUDE_FROM_ALL YES
-)
-CPMAddPackage(
-  NAME spdlog
-  GITHUB_REPOSITORY gabime/spdlog
-  GIT_TAG v1.17.0
-  EXCLUDE_FROM_ALL YES
-)
-CPMAddPackage(
-  NAME cpr
-  GITHUB_REPOSITORY libcpr/cpr
-  GIT_TAG 1.12.0
-  EXCLUDE_FROM_ALL YES
-)
-CPMAddPackage(
-  NAME rapidyaml
-  GITHUB_REPOSITORY biojppm/rapidyaml
-  GIT_TAG v0.9.0
-  EXCLUDE_FROM_ALL YES
-)
-CPMAddPackage(
-  NAME Corrosion
-  GITHUB_REPOSITORY corrosion-rs/corrosion
-  GIT_TAG v0.5.2
-  EXCLUDE_FROM_ALL YES
-)
-
-find_package(PolkitQt6-1 REQUIRED)
-
-##
-## CONFIGURATION
-##
-set(CMAKE_AUTOUIC ON)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
-   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -flto=thin -fwhole-program-vtables")
-   set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -flto=thin -fwhole-program-vtables")
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -flto -fwhole-program -fuse-linker-plugin")
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Concurrent LinguistTools)
+find_package(PkgConfig REQUIRED)
+find_package(Threads REQUIRED)
+pkg_check_modules(LIBALPM REQUIRED IMPORTED_TARGET libalpm>=13.0.0)
+pkg_check_modules(APPSTREAM REQUIRED IMPORTED_TARGET appstream)
+find_package(OpenSSL REQUIRED)
+
+file(GLOB TS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/lang/*.ts")
+if(TS_FILES)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lang")
+    set_source_files_properties(${TS_FILES} PROPERTIES OUTPUT_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/lang")
+    qt_add_translation(QM_FILES ${TS_FILES})
+
+    # deterministic .qm paths (qt_add_translation derives them the same way)
+    set(QM_PATHS)
+    foreach(ts ${TS_FILES})
+        get_filename_component(ts_name ${ts} NAME)
+        string(REPLACE ".ts" ".qm" qm_name "${ts_name}")
+        list(APPEND QM_PATHS "${CMAKE_CURRENT_BINARY_DIR}/lang/${qm_name}")
+    endforeach()
+
+    # the list is stored in a script file at configure time (passing it via
+    # -D would be mangled by the makefile generator's list escaping)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/lang/qm_list.cmake"
+        "set(TRANSLATION_FILES ${QM_PATHS})\n")
+
+    # embed the compiled .qm files through a generated resource file that is
+    # (re)generated at build time after the .qm files exist
+    set(QRC_OUT "${CMAKE_CURRENT_BINARY_DIR}/lang/translations_generated.qrc")
+    add_custom_command(
+        OUTPUT "${QRC_OUT}"
+        DEPENDS ${QM_PATHS}
+        COMMAND ${CMAKE_COMMAND}
+            -DQM_LIST=${CMAKE_CURRENT_BINARY_DIR}/lang/qm_list.cmake
+            -DOUT=${QRC_OUT}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gen_qrc.cmake
+        VERBATIM)
 endif()
 
-# Link this 'library' to set the c++ standard / compile-time options requested
-add_library(project_options INTERFACE)
-target_compile_features(project_options INTERFACE cxx_std_23)
-
-# Files with translation sources. You should run lupdate manually when needed to regenerate them
-file(GLOB TS_FILES "${PROJECT_SOURCE_DIR}/lang/*.ts")
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lang")
-
-set_source_files_properties(${TS_FILES} PROPERTIES OUTPUT_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/lang") # set qm files output directory
-qt_add_translation(QM_FILES ${TS_FILES})   # generate qm files
-
-add_custom_command(
-    DEPENDS "${QM_FILES}"
-    OUTPUT "${CMAKE_BINARY_DIR}/cachyospi_locale.qrc"
-    COMMAND cp "${CMAKE_SOURCE_DIR}/cachyospi_locale.qrc" "${CMAKE_CURRENT_BINARY_DIR}"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+set(APP_SOURCES
+    resources/app.qrc
+    ${CMAKE_CURRENT_BINARY_DIR}/lang/translations_generated.qrc
+    src/logging.cpp src/logging.h
+    src/cmd.cpp src/cmd.h
+    src/pacman_conf.cpp src/pacman_conf.h
+    src/alpm_manager.cpp src/alpm_manager.h
+    src/pacman_cache.cpp src/pacman_cache.h
+    src/flatpak.cpp src/flatpak.h
+    src/pkglist.cpp src/pkglist.h
+    src/appstream_provider.cpp src/appstream_provider.h
+    src/versionnumber.h
+    src/theme.cpp src/theme.h
+    src/models/package_model.cpp src/models/package_model.h
+    src/models/flatpak_model.cpp src/models/flatpak_model.h
+    src/ui/package_card.cpp src/ui/package_card.h
+    src/ui/package_detail.cpp src/ui/package_detail.h
+    src/ui/confirm_dialog.cpp src/ui/confirm_dialog.h
+    src/ui/remotes_dialog.cpp src/ui/remotes_dialog.h
+    src/ui/progress_overlay.cpp src/ui/progress_overlay.h
+    src/ui/navbar.cpp src/ui/navbar.h
+    src/ui/discover_page.cpp src/ui/discover_page.h
+    src/ui/repo_page.cpp src/ui/repo_page.h
+    src/ui/flatpak_page.cpp src/ui/flatpak_page.h
+    src/ui/console_page.cpp src/ui/console_page.h
+    src/ui/settings_page.cpp src/ui/settings_page.h
+    src/ui/mainwindow.cpp src/ui/mainwindow.h
+    src/ui_test_harness.cpp src/ui_test_harness.h
 )
 
-##
-## Target
-##
-qt_add_executable(${PROJECT_NAME}
-    ${RESOURCES}
-    images.qrc "${CMAKE_BINARY_DIR}/cachyospi_locale.qrc"
-    src/ini.hpp
-    src/utils.hpp src/utils.cpp
-    src/logging_utils.hpp src/logging_utils.cpp
-    src/versionnumber.hpp
-    src/alpm_manager.hpp src/alpm_manager.cpp
-    src/pacmancache.hpp src/pacmancache.cpp
-    src/remotes.hpp src/remotes.cpp
-    src/about.hpp src/about.cpp
-    src/cmd.hpp src/cmd.cpp
-    src/mainwindow.hpp src/mainwindow.cpp
-    src/mainwindow.ui
-    src/main.cpp)
+set(APP_LIBS
+    Qt6::Widgets Qt6::Network Qt6::Concurrent Threads::Threads OpenSSL::SSL
+    PkgConfig::LIBALPM PkgConfig::APPSTREAM)
 
-# Link this 'library' to use the warnings specified in CompilerWarnings.cmake
-add_library(project_warnings INTERFACE)
-set_project_warnings(project_warnings)
+qt_add_executable(cachyos-pi ${APP_SOURCES} src/main.cpp)
+target_include_directories(cachyos-pi PRIVATE src src/models)
+target_link_libraries(cachyos-pi PRIVATE ${APP_LIBS})
 
-# Add linker configuration
-configure_linker(project_options)
-
-# sanitizer options if supported by compiler
-enable_sanitizers(project_options)
-
-corrosion_import_crate(MANIFEST_PATH "backend-rustlib/Cargo.toml" FLAGS "${CARGO_FLAGS}")
-corrosion_add_cxxbridge(backend-rustlib-cxxbridge CRATE backend_rustlib FILES lib.rs)
-
-include_directories(${CMAKE_SOURCE_DIR}/src ${CMAKE_BINARY_DIR})
-
-target_link_libraries(${PROJECT_NAME} PRIVATE project_warnings project_options Qt6::Widgets Threads::Threads spdlog::spdlog fmt::fmt ryml::ryml cpr::cpr backend-rustlib-cxxbridge PkgConfig::LIBALPM)
-
-option(ENABLE_UNITY "Enable Unity builds of projects" OFF)
-if(ENABLE_UNITY)
-   # Add for any project you want to apply unity builds for
-   set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(cachyos-pi PRIVATE -O2)
 endif()
 
-install(
-   TARGETS ${PROJECT_NAME}
-   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
-install(
-   FILES org.cachyos.cachyos-pi.pkexec.policy
-   DESTINATION "${POLKITQT-1_POLICY_FILES_INSTALL_DIR}"
-)
-
-install(
-   FILES "${PROJECT_SOURCE_DIR}/pkglist.yaml"
-   DESTINATION lib/cachyos-pi
-)
-file(GLOB HELP_FILES "${PROJECT_SOURCE_DIR}/help/*")
-install(
-   FILES ${HELP_FILES}
-   DESTINATION share/doc/cachyos-packageinstaller
-)
-
-install(
-   FILES cachyos-pi.desktop
-   DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
-)
-install(
-   FILES icons/cachyos-pi.png
-   DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
-)
+enable_testing()
+add_test(NAME ui COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.sh $<TARGET_FILE:cachyos-pi>)

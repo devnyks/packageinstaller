@@ -1,58 +1,69 @@
-# cachyos-packageinstaller
-Simple Software Application Package Installer.
+# CachyOS Package Installer — Redesigned (benchmark build)
 
-Requirements
-------------
-* C++23 feature required (tested with GCC 14.1.1 and Clang 18)
-Any compiler which support C++23 standard should work.
+A modern, fast, polished Qt desktop software catalog that preserves the
+complete functionality and fundamental architecture of the original
+CachyOS Package Installer.
 
-######
-## Installing from Source
+> **Benchmark provenance**: this repository is a from-scratch redesign produced
+> as an autonomous engineering benchmark. It was written **by the model
+> DeepSeek V4 Flash (0731)** in a single session.
+>
+> - Model: **DeepSeek V4 Flash (0731)**
+> - Tokens spent: **552447**
+> - Cost: **$0.35**
+>
+> The reference implementation (`CachyOS/packageinstaller`) was used strictly
+> as the authoritative spec; it was never modified.
 
-This is tested on Arch Linux, but *any* recent Arch Linux based system with latest C++23 compiler should do:
+## Overview
+
+Fluent 2-inspired UI with a left navigation rail and five pages:
+**Discover** (curated applications with AppStream artwork and screenshots),
+**Packages** (full repository browser), **Flatpak**, **Console** and
+**Settings** (System/Light/Dark themes, persisted).
+
+The package-management engine mirrors the reference semantics exactly:
+libalpm-based transaction previews and conflict detection
+(`DB_ONLY | ALL_DEPS | ALL_EXPLICIT | NO_LOCK`, never committed), all real
+operations through `pkexec pacman` / `flatpak` (socat PTY wrappers), the
+same startup guards (single instance, valid DBs, root refusal, pacman lock)
+and the same Flatpak scope/remote/filter model.
+
+Architecture and decisions are documented in `DESIGN.md`; agent guidance in
+`AGENTS.md`.
+
+## Build & run
+
 ```sh
-sudo pacman -S \
-    base-devel cmake pkg-config make qt6-base qt6-tools polkit-qt6
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+./build/cachyos-pi
 ```
-You also need Rust installed:
+
+Dependencies: Qt 6 (Widgets, Network, Concurrent, LinguistTools), libalpm
+(>= 13), libappstream, polkit + pkexec, flatpak, socat, pacman.
+
+## Tests
+
 ```sh
-sudo pacman -S rustup
-rustup default stable
+./tests/run_tests.sh build/cachyos-pi
 ```
 
-### Cloning the Source Code
-```sh
-git clone https://github.com/cachyos/packageinstaller.git
-cd packageinstaller
-```
+Runs the scripted end-to-end suite (install/uninstall/upgrade/orphans,
+Flatpak flows, transaction previews, conflict detection, failure paths,
+themes, single-instance guard) against fake `pkexec/pacman/flatpak/socat`
+fixtures — nothing touches the host system.
 
-### Building and Configuring
-To build, first, configure it(if you intend to install it globally, you
-might also want `--prefix=/usr`):
-```sh
-./configure.sh --prefix=/usr/local
-```
-Second, build it:
-```sh
-./build.sh
-```
+## Screenshots
 
-### Running the Binary
-```sh
-./build/RelWithDebInfo/cachyos-pi
-```
+See `screenshots/`.
 
-### Easy way to verify pkglist.yaml in fish
-```fish
-for pkg in (yq -r '.[].packages[]' pkglist.yaml)
-    for split in (string split ' ' $pkg)
-        pacman -Si $split >/dev/null 2>&1; and echo "Found: $split"; or echo "NOT FOUND: $split"
-    end
-end
-```
+## License
 
-### Libraries used in this project
+GPL-2.0-or-later (see `LICENSE`), matching the original project.
 
-* [Qt](https://www.qt.io) used for GUI.
-* [A modern formatting library](https://github.com/fmtlib/fmt) used for formatting strings, output and logging.
+## Fork lineage
 
+Forked from [CachyOS/packageinstaller](https://github.com/CachyOS/packageinstaller).
+This branch carries the redesigned implementation as a full rewrite on top of
+the original history.
