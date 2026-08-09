@@ -56,7 +56,25 @@ fixtures — nothing touches the host system.
 
 ## Screenshots
 
-See `screenshots/`.
+Discover page (light theme):
+
+![Discover (light)](screenshots/theme-light-discover.png)
+
+Main window — light theme:
+
+![Main window light](screenshots/theme-light.png)
+
+Main window — dark theme:
+
+![Main window dark](screenshots/theme-dark.png)
+
+Full-size window:
+
+![Full size](screenshots/window-1500x940.png)
+
+Running on a real desktop session (dark system theme):
+
+![Real display](screenshots/app-real-display.png)
 
 ## License
 
