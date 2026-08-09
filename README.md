@@ -1,90 +1,117 @@
-# CachyOS Package Installer — Redesigned (benchmark build)
+# CachyOS Package Installer - Redesigned
 
-A modern, fast, polished Qt desktop software catalog that preserves the
-complete functionality and fundamental architecture of the original
-CachyOS Package Installer.
+A modern Qt 6 desktop software catalog for CachyOS. The application preserves
+the reference package-management model while providing a responsive Fluent
+2-inspired interface for curated applications, native repositories, and
+Flatpak software.
 
-> **Benchmark provenance**: this repository is a from-scratch redesign produced
-> as an autonomous engineering benchmark. It was written **by the model
-> DeepSeek V4 Flash (0731)** from a **single one-shot prompt** — the whole
-> project (architecture, implementation, tests, debugging and this
-> documentation) was completed autonomously without iterative prompting.
+> **Benchmark provenance:** this repository is a from-scratch redesign produced
+> as an autonomous engineering benchmark. The official CachyOS reference was
+> used as the authoritative specification and was never modified.
 >
-> - Model: **DeepSeek V4 Flash (0731)**
-> - Prompt style: **one-shot** (single prompt, fully autonomous execution)
-> - Tokens spent: **552447**
-> - Cost: **$0.35**
->
-> The reference implementation (`CachyOS/packageinstaller`) was used strictly
-> as the authoritative spec; it was never modified.
+> - Model: **GPT 5.6**
+> - Prompt style: **autonomous multi-step implementation and verification**
+> - Context: **498,099 tokens**
+> - Usage: **47%**
+> - Recorded cost: **$2.32**
 
 ## Overview
 
-Fluent 2-inspired UI with a left navigation rail and five pages:
-**Discover** (curated applications with AppStream artwork and screenshots),
-**Packages** (full repository browser), **Flatpak**, **Console** and
-**Settings** (System/Light/Dark themes, persisted).
+The catalog provides:
 
-The package-management engine mirrors the reference semantics exactly:
-libalpm-based transaction previews and conflict detection
-(`DB_ONLY | ALL_DEPS | ALL_EXPLICIT | NO_LOCK`, never committed), all real
-operations through `pkexec pacman` / `flatpak` (socat PTY wrappers), the
-same startup guards (single instance, valid DBs, root refusal, pacman lock)
-and the same Flatpak scope/remote/filter model.
+- Curated application categories backed by the CachyOS package list
+- Native pacman repository browsing, search, filtering, details, and status
+- Flatpak application and runtime discovery with system/user scopes
+- AppStream names, descriptions, icons, screenshots, and homepage metadata
+- Dependency, conflict, target, and size previews before native changes
+- Install, remove, selected upgrade, full upgrade, orphan cleanup, and batch actions
+- Flatpak install, remove, selected/full updates, unused-runtime cleanup, remotes, and Flatpakref support
+- Streaming console output, interactive input, cancellation, settings, themes, logging, and translations
 
-Architecture and decisions are documented in `DESIGN.md`; agent guidance in
-`AGENTS.md`.
+Architecture and safety decisions are documented in `DESIGN.md`. Development
+rules are documented in `AGENTS.md`.
 
-## Build & run
+## Build & Run
 
 ```sh
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-./build/cachyos-pi
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build --parallel
+./build/cachyos-catalog
 ```
 
-Dependencies: Qt 6 (Widgets, Network, Concurrent, LinguistTools), libalpm
-(>= 13), libappstream, polkit + pkexec, flatpak, socat, pacman.
+To install into a prefix:
+
+```sh
+cmake -S . -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build --parallel
+sudo cmake --install build
+```
+
+### Dependencies
+
+- Qt 6.5 or newer: Core, Gui, Qml, Quick, QuickControls2, Network, Test, LinguistTools
+- CMake 3.22 or newer and Ninja or another supported generator
+- `libalpm` 13 or newer
+- AppStream 1.0 or newer
+- `pacman`, `pacman-conf`, `pkexec`, and Polkit for native system operations
+- Flatpak for Flatpak discovery and operations
+
+Flatpak is optional for native repository use. The application reports missing
+runtime tools without silently changing system configuration.
+
+## Security Model
+
+The application deliberately keeps metadata and mutation paths separate:
+
+- libalpm is used for read-only metadata, installed-state detection, upgrade detection, and transaction previews.
+- Preview transactions use `DB_ONLY`, dependency/explicit-target flags, and `NO_LOCK`; they are always released without commit.
+- Real native mutations run through `pkexec pacman` after confirmation and an immediate pacman-lock check.
+- Flatpak mutations use argv-safe `QProcess` calls with the selected system/user scope.
+- Package names, remote names, URLs, and paths are never interpolated into shell commands.
+- The GUI refuses root execution, enforces a single instance, and checks the configured pacman database before loading.
+- Verification uses read-only database/Flatpak queries and fake process/argv tests. It does not install, remove, upgrade, or modify remotes on the host.
 
 ## Tests
 
 ```sh
-./tests/run_tests.sh build/cachyos-pi
+ctest --test-dir build --output-on-failure
 ```
 
-Runs the scripted end-to-end suite (install/uninstall/upgrade/orphans,
-Flatpak flows, transaction previews, conflict detection, failure paths,
-themes, single-instance guard) against fake `pkexec/pacman/flatpak/socat`
-fixtures — nothing touches the host system.
+The test suite covers curated and nested catalogue parsing, model filtering
+and selection, libalpm enumeration and non-mutating previews, Flatpak parsing
+and read-only integration, argv construction, failed process startup,
+cancellation, and QML linting.
+
+For an offline UI smoke run:
+
+```sh
+QT_QPA_PLATFORM=offscreen \
+CACHYOS_CATALOG_OFFLINE=1 \
+./build/cachyos-catalog
+```
 
 ## Screenshots
 
-Discover — curated applications:
+Discover - curated applications:
 
-![Discover](screenshots/screenshot-discover.jpg)
+![Discover](screenshots/home-final.png)
 
-Packages — full repository browser:
+Dark theme and HiDPI:
 
-![Packages](screenshots/screenshot-packages.jpg)
+![Dark theme](screenshots/home-dark-hidpi.png)
 
-Flatpak — applications and runtimes:
+Compact responsive layout:
 
-![Flatpak](screenshots/screenshot-flatpak.jpg)
-
-Console — live process output:
-
-![Console](screenshots/screenshot-console.jpg)
-
-Settings — themes and preferences:
-
-![Settings](screenshots/screenshot-settings.jpg)
+![Compact layout](screenshots/home-compact.png)
 
 ## License
 
-GPL-2.0-or-later (see `LICENSE`), matching the original project.
+GPL-2.0-or-later. See `LICENSE`.
 
-## Fork lineage
+## Fork Lineage
 
-Forked from [CachyOS/packageinstaller](https://github.com/CachyOS/packageinstaller).
-This branch carries the redesigned implementation as a full rewrite on top of
-the original history.
+The reference behavior is based on
+[CachyOS/packageinstaller](https://github.com/CachyOS/packageinstaller).
+The reference repository is treated as read-only during development.
